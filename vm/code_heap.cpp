@@ -80,6 +80,7 @@ struct all_blocks_set_verifier {
 	void operator()(code_block *block, cell size)
 	{
 		FACTOR_ASSERT(all_blocks->find((cell)block) != all_blocks->end());
+		// XXX check block size
 	}
 };
 
@@ -91,16 +92,14 @@ void code_heap::verify_all_blocks_set()
 
 code_block *code_heap::code_block_for_address(cell address)
 {
-#ifdef FACTOR_DEBUG
-	verify_all_blocks_set();
-#endif
 	std::set<cell>::const_iterator blocki =
 		all_blocks.upper_bound(address);
 	FACTOR_ASSERT(blocki != all_blocks.begin());
 	--blocki;
 	code_block* found_block = (code_block*)*blocki;
 	FACTOR_ASSERT((cell)found_block->entry_point() <= address
-		&& address - (cell)found_block->entry_point() < found_block->size());
+		/* XXX this isn't valid during fixup. should store the size in the map
+		&& address - (cell)found_block->entry_point() < found_block->size()*/);
 	return found_block;
 }
 
@@ -120,19 +119,9 @@ void code_heap::initialize_all_blocks_set()
 	all_blocks.clear();
 	all_blocks_set_inserter inserter(this);
 	allocator->iterate(inserter);
-}
-
-void code_heap::update_all_blocks_set(mark_bits<code_block> *code_forwarding_map)
-{
-	std::set<cell> new_all_blocks;
-	for (std::set<cell>::const_iterator oldi = all_blocks.begin();
-		oldi != all_blocks.end();
-		++oldi)
-	{
-		code_block *new_block = code_forwarding_map->forward_block((code_block*)*oldi);
-		new_all_blocks.insert((cell)new_block);
-	}
-	all_blocks.swap(new_all_blocks);
+#if defined(FACTOR_DEBUG)
+	verify_all_blocks_set();
+#endif
 }
 
 /* Allocate a code heap during startup */
